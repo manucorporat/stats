@@ -2,14 +2,13 @@ package stats
 
 import "sync"
 
-type StatsType map[string]float64
+type ValueType float64
+type StatsType map[string]ValueType
 
 type StatsCollector struct {
 	lock  sync.RWMutex
 	stats StatsType
 }
-
-var defaultCollector = New()
 
 func New() *StatsCollector {
 	s := new(StatsCollector)
@@ -19,59 +18,67 @@ func New() *StatsCollector {
 
 func (s *StatsCollector) Reset() {
 	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	s.stats = make(StatsType)
+	s.lock.Unlock()
 }
 
-func (s *StatsCollector) Set(key string, value float64) {
+func (s *StatsCollector) Set(key string, value ValueType) {
 	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	s.stats[key] = value
+	s.lock.Unlock()
 }
 
-func (s *StatsCollector) Add(key string, delta float64) float64 {
+func (s *StatsCollector) Add(key string, delta ValueType) (v ValueType) {
 	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	value := s.stats[key]
-	value += delta
-	s.stats[key] = value
-	return value
+	v = s.stats[key]
+	v += delta
+	s.stats[key] = v
+	s.lock.Unlock()
+	return
 }
 
-func (s *StatsCollector) Get(key string) float64 {
+func (s *StatsCollector) Get(key string) (v ValueType) {
 	s.lock.RLock()
-	defer s.lock.RUnlock()
+	v = s.stats[key]
+	s.lock.RUnlock()
+	return
+}
 
-	return s.stats[key]
+func (s *StatsCollector) Del(key string) {
+	s.lock.Lock()
+	delete(s.stats, key)
+	s.lock.Unlock()
 }
 
 func (s *StatsCollector) Data() StatsType {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	cp := make(StatsType)
+	s.lock.RLock()
 	for key, value := range s.stats {
 		cp[key] = value
 	}
+	s.lock.RUnlock()
 	return cp
 }
+
+var defaultCollector = New()
 
 func Reset() {
 	defaultCollector.Reset()
 }
 
-func Set(key string, value float64) {
+func Set(key string, value ValueType) {
 	defaultCollector.Set(key, value)
 }
 
-func Add(key string, delta float64) float64 {
+func Del(key string) {
+	defaultCollector.Del(key)
+}
+
+func Add(key string, delta ValueType) ValueType {
 	return defaultCollector.Add(key, delta)
 }
 
-func Get(key string) float64 {
+func Get(key string) ValueType {
 	return defaultCollector.Get(key)
 }
 
